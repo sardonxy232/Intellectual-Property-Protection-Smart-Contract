@@ -181,6 +181,33 @@
   )
 )
 
+;; Revoke access permissions from a user
+(define-public (revoke-permission (work-id uint) (user principal))
+  (begin
+    (asserts! (is-contract-active) ERR_CONTRACT_DISABLED)
+    (asserts! (work-exists work-id) ERR_NOT_FOUND)
+    (asserts! (is-work-owner work-id tx-sender) ERR_UNAUTHORIZED)
+    (asserts! (validate-principal user) ERR_INVALID_INPUT)
+
+    (map-delete work-permissions { work-id: work-id, user: user })
+    (log-access work-id tx-sender "REVOKE_PERMISSION")
+    (ok true)
+  )
+)
+
+;; Access work metadata (requires read permission)
+(define-public (access-work (work-id uint))
+  (begin
+    (asserts! (is-contract-active) ERR_CONTRACT_DISABLED)
+    (asserts! (work-exists work-id) ERR_NOT_FOUND)
+    (asserts! (has-permission work-id tx-sender PERMISSION_READ) ERR_INSUFFICIENT_PERMISSIONS)
+
+    (log-access work-id tx-sender "ACCESS")
+    (ok (map-get? intellectual-works { work-id: work-id }))
+  )
+)
+
+
 
 ;; Initiate ownership transfer
 (define-public (initiate-transfer (work-id uint) (new-owner principal))
