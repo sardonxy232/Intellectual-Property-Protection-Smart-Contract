@@ -207,7 +207,32 @@
   )
 )
 
+;; Update work metadata (requires write permission)
+(define-public (update-work 
+  (work-id uint)
+  (title (string-ascii 128))
+  (description (string-ascii 256))
+)
+  (begin
+    (asserts! (is-contract-active) ERR_CONTRACT_DISABLED)
+    (asserts! (work-exists work-id) ERR_NOT_FOUND)
+    (asserts! (has-permission work-id tx-sender PERMISSION_WRITE) ERR_INSUFFICIENT_PERMISSIONS)
+    (asserts! (> (len title) u0) ERR_INVALID_INPUT)
+    (asserts! (> (len description) u0) ERR_INVALID_INPUT)
 
+    (match (map-get? intellectual-works { work-id: work-id })
+      work (begin
+        (map-set intellectual-works
+          { work-id: work-id }
+          (merge work { title: title, description: description })
+        )
+        (log-access work-id tx-sender "UPDATE")
+        (ok true)
+      )
+      ERR_NOT_FOUND
+    )
+  )
+)
 
 ;; Initiate ownership transfer
 (define-public (initiate-transfer (work-id uint) (new-owner principal))
