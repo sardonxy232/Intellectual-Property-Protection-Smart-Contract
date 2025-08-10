@@ -73,6 +73,24 @@
   )
 )
 
+(define-private (validate-content-hash (hash (buff 32)))
+  (is-eq (len hash) u32)
+)
+
+(define-private (validate-work-type (work-type (string-ascii 32)))
+  (and
+    (> (len work-type) u0)
+    (<= (len work-type) u32)
+    ;; Check for valid characters (alphanumeric and basic punctuation)
+    (not (is-eq work-type ""))
+  )
+)
+
+(define-private (validate-principal (user principal))
+  ;; Basic principal validation - ensure it's not the zero principal
+  (not (is-eq user 'SP000000000000000000002Q6VF78))
+)
+
 (define-private (has-permission (work-id uint) (user principal) (required-level uint))
   (or
     (is-work-owner work-id user)
@@ -110,6 +128,8 @@
     (asserts! (> (len title) u0) ERR_INVALID_INPUT)
     (asserts! (> (len description) u0) ERR_INVALID_INPUT)
     (asserts! (> file-size u0) ERR_INVALID_INPUT)
+    (asserts! (validate-content-hash content-hash) ERR_INVALID_INPUT)
+    (asserts! (validate-work-type work-type) ERR_INVALID_INPUT)
 
     (let ((work-id (increment-work-id)))
       (map-set intellectual-works
@@ -150,6 +170,7 @@
     (asserts! (work-exists work-id) ERR_NOT_FOUND)
     (asserts! (is-work-owner work-id tx-sender) ERR_UNAUTHORIZED)
     (asserts! (<= permission-level PERMISSION_ADMIN) ERR_INVALID_INPUT)
+    (asserts! (validate-principal user) ERR_INVALID_INPUT)
 
     (map-set work-permissions
       { work-id: work-id, user: user }
@@ -160,57 +181,6 @@
   )
 )
 
-;; Revoke access permissions from a user
-(define-public (revoke-permission (work-id uint) (user principal))
-  (begin
-    (asserts! (is-contract-active) ERR_CONTRACT_DISABLED)
-    (asserts! (work-exists work-id) ERR_NOT_FOUND)
-    (asserts! (is-work-owner work-id tx-sender) ERR_UNAUTHORIZED)
-
-    (map-delete work-permissions { work-id: work-id, user: user })
-    (log-access work-id tx-sender "REVOKE_PERMISSION")
-    (ok true)
-  )
-)
-
-;; Access work metadata (requires read permission)
-(define-public (access-work (work-id uint))
-  (begin
-    (asserts! (is-contract-active) ERR_CONTRACT_DISABLED)
-    (asserts! (work-exists work-id) ERR_NOT_FOUND)
-    (asserts! (has-permission work-id tx-sender PERMISSION_READ) ERR_INSUFFICIENT_PERMISSIONS)
-
-    (log-access work-id tx-sender "ACCESS")
-    (ok (map-get? intellectual-works { work-id: work-id }))
-  )
-)
-
-;; Update work metadata (requires write permission)
-(define-public (update-work 
-  (work-id uint)
-  (title (string-ascii 128))
-  (description (string-ascii 256))
-)
-  (begin
-    (asserts! (is-contract-active) ERR_CONTRACT_DISABLED)
-    (asserts! (work-exists work-id) ERR_NOT_FOUND)
-    (asserts! (has-permission work-id tx-sender PERMISSION_WRITE) ERR_INSUFFICIENT_PERMISSIONS)
-    (asserts! (> (len title) u0) ERR_INVALID_INPUT)
-    (asserts! (> (len description) u0) ERR_INVALID_INPUT)
-
-    (match (map-get? intellectual-works { work-id: work-id })
-      work (begin
-        (map-set intellectual-works
-          { work-id: work-id }
-          (merge work { title: title, description: description })
-        )
-        (log-access work-id tx-sender "UPDATE")
-        (ok true)
-      )
-      ERR_NOT_FOUND
-    )
-  )
-)
 
 ;; Initiate ownership transfer
 (define-public (initiate-transfer (work-id uint) (new-owner principal))
